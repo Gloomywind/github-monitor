@@ -3,7 +3,6 @@
 import os
 import time
 import logging
-import re
 import dateutil.parser
 from urllib3.exceptions import ReadTimeoutError
 from django.utils import timezone
@@ -72,7 +71,7 @@ class TaskProcessor(object):
                 if 'abuse-rate-limits' in e.data.get('documentation_url'):
                     session, _token = self._reset_token(session, _token)
                 else:
-                    logger.info(e)
+                    logger.exception(e)
                 continue
             # 防止由于网络原因导致的获取失败
             except ReadTimeoutError:
@@ -91,7 +90,7 @@ class TaskProcessor(object):
                 if 'abuse-rate-limits' in e.data.get('documentation_url'):
                     session, _token = self._reset_token(session, _token)
                 else:
-                    logger.info(e)
+                    logger.exception(e)
                 continue
             # 防止由于网络原因导致的获取失败
             except ReadTimeoutError:
@@ -100,6 +99,7 @@ class TaskProcessor(object):
         close_old_connections()
 
     def process_pages(self, _contents, _keyword):
+        logging.info(_keyword)
         def get_data(github_file):
             if not github_file.last_modified:
                 try:
@@ -167,27 +167,12 @@ class TaskProcessor(object):
         })
        
     def filter(self, data, _keyword):
-        for ch in data['file_name']:
-            if u'\u4e00' <= ch <= u'\u9fff':
-                return False
-        if self.check_filename(data['file_name']):
-            return data
-
-			
-    def check_filename(self, filename):
-        black_list = []
-        with open('/home/docker/Github-Monitor/server/extension.txt', 'r') as f:
-            for line in f.readlines():
-                black_list.append(line.strip())
-        extension_list = filename.split('.')
-        if len(extension_list) < 2:
-            return False
+        logging.info(data['fragment'])
+        if data['file_name'].endswith('.html') or data['file_name'].endswith('.txt') or data['file_name'].endswith('.csv') or data['file_name'].endswith('.lock') or data['file_name'].endswith('.md') or data['file_name'].endswith('.ipynb') or data['file_name'].endswith('.svg') or data['file_name'].endswith('.js') or data['file_name'].endswith('.css') or data['file_name'].endswith('.xml') or data['file_name'].endswith('.bak') or data['file_name'].endswith('.pac') or data['file_name'].endswith('.list') or data['file_name'].endswith('.screenshot') :
+            return None
         else:
-            extension = extension_list[-1].lower()
-            if extension in black_list:
-                return False
-            else:
-                return True
+            return data
+   
 
     def send_email(self):
         if self.task.mail and self.email_results:
@@ -223,7 +208,7 @@ class TaskProcessor(object):
             try:
                 self.send_email()
             except Exception as e:
-                logger.critical(e)
+                logger.exception(e)
                 pass
             # sleep一个周期的时间
             time.sleep(60 * self.task.interval)
@@ -233,4 +218,3 @@ if __name__ == '__main__':
     t = Task.objects.get(id=5)
     cp = TaskProcessor(t)
     cp.process()
-
